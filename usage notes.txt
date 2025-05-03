@@ -1,0 +1,67 @@
+
+
+python garmin_merge_tool.py Activities.csv cleaned_garmin_activities.sqlite
+
+
+⚙️ What It Does
+
+    Cleans and standardizes the new Garmin CSV file
+
+    Loads existing data from a SQLite database (or creates it if missing)
+
+    Merges the new data, avoiding duplicates based on date + activity_type + title
+
+    Saves everything back to the same database
+
+    Reports how many new records were added
+    
+    You have several strong options for querying and analyzing the database, depending on how hands-on or automated you'd like to be. Here's a breakdown:
+
+---
+
+### 🧠 **Option 1: Feed It Back to Me**
+**Best for**: High-level analysis, trends, summaries, comparisons  
+**How**:
+- Upload the updated `.sqlite` file here
+- Ask natural-language questions like:
+  - “What was my average heart rate during backcountry skiing this winter?”
+  - “Which month had the most calories burned?”
+  - “Chart distance over time for cycling activities”
+
+📌 *I can write SQL under the hood and even generate plots or export CSVs.*
+
+---
+
+### 🖥️ **Option 2: Use SQLite Locally**
+**Best for**: Direct SQL querying on your machine  
+Use tools like:
+- **[DB Browser for SQLite](https://sqlitebrowser.org/)** — Easy GUI for viewing, querying, and exporting
+- **Python + Pandas**:
+  ```python
+  import sqlite3
+  import pandas as pd
+
+  conn = sqlite3.connect("cleaned_garmin_activities.sqlite")
+  df = pd.read_sql_query("SELECT * FROM activities WHERE activity_type = 'Cycling'", conn)
+  print(df.describe())
+  ```
+- **DataGrip**, **DBeaver**, or **VS Code** with SQLite extensions
+
+---
+
+### 📊 **Option 3: Connect to BI Tools**
+**Best for**: Dashboards, recurring reports, visuals  
+- Connect `.sqlite` file to:
+  - **Tableau** or **Power BI**
+  - **Google Data Studio** (via CSV exports or an intermediary)
+  - **Excel** via Power Query
+- Build dynamic filters (e.g., by activity type, season, duration)
+
+---
+
+### 🧩 Hybrid Option
+You can do basic filtering and selection locally, then feed summaries or targeted data subsets back here for deeper analysis or interpretation.
+
+---
+
+Would you like a working example of one of these options (e.g., a Python script to query averages by sport, or a Tableau-ready CSV)?
