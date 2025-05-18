@@ -1,23 +1,24 @@
 import sqlite3
 import pandas as pd
+import sys
+import os
 
-# Path to your local SQLite database file
-db_path = "garmin_activities.sqlite"  # Adjust path if necessary
+# Default database filename
+default_db = "garmin_activities.sqlite"
+db_path = sys.argv[1] if len(sys.argv) > 1 else default_db
 
-# Connect to the database
+# Validate existence
+if not os.path.isfile(db_path):
+    print(f"Database file not found: {db_path}")
+    sys.exit(1)
+
+# Connect and query
 conn = sqlite3.connect(db_path)
+df = pd.read_sql_query("""
+    SELECT title, date, distance, calories
+    FROM activities
+    ORDER BY date DESC
+    LIMIT 10;
+""", conn)
 
-# Query the latest 5 activities
-query = """
-SELECT title, date, calories
-FROM activities
-ORDER BY date DESC
-LIMIT 5;
-"""
-
-# Execute and display results
-df = pd.read_sql_query(query, conn)
-print(df)
-
-conn.close()
-
+print(df.to_string(index=False))

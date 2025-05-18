@@ -1,11 +1,62 @@
-# Garmin
-Tools for sports activity data management and analysis
+# Garmin Activity Tools – Quick Guide
 
-The merge tool is meant to take a csv from Garmin Connect and add its activities to an SQLite database. The cleaner tool is just for cleaning up the db if that becomes necessary.
-To Use:
-    1. Log in to Garmin connect on the web.
-    2. Select Activities / All Activities from left menu.
-    3. Click “Export CSV” (upper right) and save the file somewhere.
-    4. run python3 garmin_merge.py newactivites.csv garmin_activities.sqlite
+These tools help you clean, merge, inspect, and manage Garmin CSV exports in a local SQLite database.  
+Place all files in the same folder for easy operation.
 
-newactivities.csv should have just showed up in /Downloads, and garmin_activities.sqlite should be in the same director as the merge tool.
+---
+
+## 📂 Files
+
+- `Activities.csv` – Your Garmin-exported activity log
+- `garmin_activities.sqlite` – Your SQLite database
+- `garmin_merge.py` – Script to merge new activities into the database
+- `check_latest.py` – Script to view the 10 most recent activities
+
+---
+
+## 🛠 Merge Script: `garmin_merge.py`
+
+### Usage
+
+```bash
+python3 garmin_merge.py Activities.csv garmin_activities.sqlite
+```
+
+### Optional
+
+```bash
+--no-backup    # Skip automatic .bak_YYYYMMDD_HHMMSS backup of the database
+```
+
+### What It Does
+
+- Cleans the Garmin CSV (removes commas, blanks, misformatted data)
+- Converts times like `02:30:45` into seconds
+- Preserves key fields like distance, calories, heart rate, ascent, etc.
+- Safely adds new records without duplicating existing ones
+- Creates a backup copy of the database unless `--no-backup` is used
+
+---
+
+## 🔍 Check Script: `check_latest.py`
+
+### Usage
+
+```bash
+python3 check_latest.py                # Uses garmin_activities.sqlite by default
+python3 check_latest.py other.sqlite  # Use a different database file
+```
+
+### What It Shows
+
+- The 10 most recent activities
+- Including title, date, distance, and calories
+
+---
+
+## ✅ Best Practices
+
+- Always verify `Activities.csv` is freshly downloaded from Garmin Connect.
+- Use the same filename (`garmin_activities.sqlite`) unless you intend to version it.
+- Run the merge script each time you download new activities.
+- Use the check script to confirm the import worked correctly.
