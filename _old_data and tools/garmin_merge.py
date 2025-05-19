@@ -1,6 +1,26 @@
 
 import pandas as pd
-import numpy as np
+
+import shutil
+import datetime
+
+# Handle optional --no-backup flag
+args = sys.argv[1:]
+skip_backup = '--no-backup' in args
+args = [arg for arg in args if arg != '--no-backup']
+
+if len(args) != 2:
+    print("Usage: python garmin_merge_final.py input.csv output.sqlite [--no-backup]")
+    sys.exit(1)
+
+csv_file, db_file = args
+
+# Backup logic
+if not skip_backup:
+    if os.path.exists(db_file):
+        backup_path = db_file + ".bak_" + datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        shutil.copy2(db_file, backup_path)
+        print(f"🗂️  Backup created: {backup_path}")
 import sqlite3
 import argparse
 import os
@@ -81,6 +101,20 @@ def main():
         backup_database(args.output_sqlite)
 
     raw_df = pd.read_csv(args.input_csv)
+
+# --- Enhanced Cleaning Section ---
+# Remove commas and clean whitespace from all string cells
+df = df.applymap(lambda x: x.replace(",", "").strip() if isinstance(x, str) else x)
+
+# Ensure numeric coercion after cleaning
+for col in df.columns:
+    if col not in ["activity_type", "date", "favorite", "title", "time", "moving_time", "elapsed_time", "best_lap_time"]:
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+
+# Calculate duration fields in seconds from HH:MM:SS format
+df["duration_sec"] = df["time"].apply(lambda t: sum(int(x) * 60 ** i for i, x in enumerate(reversed(t.split(":")))) if isinstance(t, str) and ":" in t else None)
+df["moving_time_sec"] = df["moving_time"].apply(lambda t: sum(int(x) * 60 ** i for i, x in enumerate(reversed(t.split(":")))) if isinstance(t, str) and ":" in t else None)
+df["elapsed_time_sec"] = df["elapsed_time"].apply(lambda t: sum(int(x) * 60 ** i for i, x in enumerate(reversed(t.split(":")))) if isinstance(t, str) and ":" in t else None)
     clean_df = clean_data(raw_df)
     merge_to_sqlite(clean_df, args.output_sqlite, table_name=args.table)
 

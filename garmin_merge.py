@@ -80,6 +80,13 @@ def merge_to_sqlite(new_data, db_path, table_name="activities", key_columns=None
         new_count = len(new_data)
 
     # Write to SQLite
+
+# Normalize activity_type to 'Skiing' if title suggests skiing and distance is non-zero
+df.loc[
+    (df['distance'] > 0) & (
+        df['title'].str.lower().str.contains('ski', na=False)
+    ), 'activity_type'
+] = 'Skiing'
     combined_df.to_sql(table_name, conn, if_exists="replace", index=False)
     conn.close()
 
