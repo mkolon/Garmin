@@ -1,122 +1,75 @@
 
 import pandas as pd
-
-import shutil
-import datetime
-
-# Handle optional --no-backup flag
-args = sys.argv[1:]
-skip_backup = '--no-backup' in args
-args = [arg for arg in args if arg != '--no-backup']
-
-if len(args) != 2:
-    print("Usage: python garmin_merge_final.py input.csv output.sqlite [--no-backup]")
-    sys.exit(1)
-
-csv_file, db_file = args
-
-# Backup logic
-if not skip_backup:
-    if os.path.exists(db_file):
-        backup_path = db_file + ".bak_" + datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        shutil.copy2(db_file, backup_path)
-        print(f"🗂️  Backup created: {backup_path}")
 import sqlite3
-import argparse
+import sys
 import os
-import shutil
 
-def clean_data(df):
-    # Standardize column names
-    df.columns = (
-        df.columns.str.strip()
-        .str.lower()
-        .str.replace("®", "", regex=False)
-        .str.replace(".", "", regex=False)
-        .str.replace(" ", "_")
-    )
+def parse_time_to_seconds(value):
+    if isinstance(value, str) and ':' in value:
+        try:
+            parts = [float(p) for p in value.strip().split(":")]
+            if len(parts) == 3:
+                h, m, s = parts
+            elif len(parts) == 2:
+                h, m, s = 0, *parts
+            else:
+                return None
+            return int(h * 3600 + m * 60 + s)
+        except ValueError:
+            return None
+    return None
 
-    # Convert date
-    if "date" in df.columns:
-        df["date"] = pd.to_datetime(df["date"], errors="coerce")
+def clean_column_names(df):
+    df.columns = [col.strip().lower() for col in df.columns]
+    return df
 
-    # Replace '--' with NaN and remove commas
-    df = df.map(lambda x: x.replace(",", "") if isinstance(x, str) else x)
+def load_and_clean_csv(csv_path):
+    df = pd.read_csv(csv_path)
+    df = clean_column_names(df)
+    df.replace("--", pd.NA, inplace=True)
+    for col in df.select_dtypes(include='object').columns:
+        df[col] = df[col].map(lambda x: x.replace(",", "").strip() if isinstance(x, str) else x)
 
-    # Convert likely numeric columns
-non_numeric = ["activity_type", "date", "favorite", "title", "time"]
-    numeric_columns = [col for col in df.columns if col not in non_numeric]
-    for col in numeric_columns:
-        df[col] = pd.to_numeric(df[col], errors="coerce")
+    # Normalize fields
+    df['distance'] = pd.to_numeric(df.get('distance'), errors='coerce')
+    df['calories'] = pd.to_numeric(df.get('calories'), errors='coerce')
+    df.loc[(df['distance'] > 0) & (df['title'].str.lower().str.contains('bike|ride|cycling', na=False)), 'activity type'] = 'Cycling'
+    df.loc[(df['distance'] > 0) & (df['title'].str.lower().str.contains('ski', na=False)), 'activity type'] = 'Skiing'
+
+    df['duration_sec'] = df['time'].apply(parse_time_to_seconds)
+    df['moving_time_sec'] = df['moving time'].apply(parse_time_to_seconds)
+    df['elapsed_time_sec'] = df['elapsed time'].apply(parse_time_to_seconds)
 
     return df
 
-def backup_database(db_path):
-    backup_path = db_path + ".bak"
-    shutil.copy(db_path, backup_path)
-    print(f"🛡️  Backup created at: {backup_path}")
-
-def merge_to_sqlite(new_data, db_path, table_name="activities", key_columns=None):
-    # Connect to or create database
-    conn = sqlite3.connect(db_path)
-
-    if not key_columns:
-        key_columns = ["date", "activity_type", "title"]
-
-    # Check if table exists
-    existing_df = pd.DataFrame()
-    try:
-        existing_df = pd.read_sql(f"SELECT * FROM {table_name}", conn, parse_dates=["date"])
-    except Exception:
-        pass
-
-    if not existing_df.empty:
-        original_count = len(existing_df)
-        combined_df = pd.concat([existing_df, new_data], ignore_index=True)
-        combined_df.drop_duplicates(subset=key_columns, inplace=True)
-        new_count = len(combined_df) - original_count
+def merge_to_sqlite(df_new, db_path, table_name='activities'):
+    if os.path.exists(db_path):
+        conn = sqlite3.connect(db_path)
+        df_existing = pd.read_sql_query(f"SELECT title, date FROM {table_name}", conn)
+        key_existing = set(tuple(x) for x in df_existing[['title', 'date']].dropna().values)
+        df_filtered = df_new[~df_new[['title', 'date']].apply(tuple, axis=1).isin(key_existing)]
+        print(f"✅ {len(df_filtered)} truly new record(s) to be added.")
+        if not df_filtered.empty:
+            df_full = pd.read_sql_query(f"SELECT * FROM {table_name}", conn)
+            df_merged = pd.concat([df_full, df_filtered], ignore_index=True)
+            df_merged.to_sql(table_name, conn, if_exists='replace', index=False)
+        conn.close()
     else:
-        combined_df = new_data.copy()
-        new_count = len(new_data)
-
-    # Write to SQLite
-    combined_df.to_sql(table_name, conn, if_exists="replace", index=False)
-    conn.close()
-
-    if new_count > 0:
-        print(f"✅ {new_count} new unique record(s) added. Database updated: {db_path}")
-    elif new_count == 0:
-        print(f"ℹ️  No new unique activities to add. Database unchanged: {db_path}")
-    else:
-        print(f"⚠️  {abs(new_count)} duplicate activity record(s) were skipped. Database unchanged: {db_path}")
+        conn = sqlite3.connect(db_path)
+        df_new.to_sql(table_name, conn, if_exists='replace', index=False)
+        print(f"✅ Database created with {len(df_new)} records.")
+        conn.close()
 
 def main():
-    parser = argparse.ArgumentParser(description="Clean and merge Garmin data into SQLite DB with backup and improved reporting")
-    parser.add_argument("input_csv", help="Path to the new Garmin CSV file")
-    parser.add_argument("output_sqlite", help="Path to the output SQLite database")
-    parser.add_argument("--table", default="activities", help="Table name")
-    args = parser.parse_args()
+    if len(sys.argv) != 3:
+        print("Usage: python garmin_merge_clean.py Activities.csv garmin_activities.sqlite")
+        sys.exit(1)
 
-    if os.path.exists(args.output_sqlite):
-        backup_database(args.output_sqlite)
+    csv_path = sys.argv[1]
+    db_path = sys.argv[2]
 
-    raw_df = pd.read_csv(args.input_csv)
-
-# --- Enhanced Cleaning Section ---
-# Remove commas and clean whitespace from all string cells
-df = df.applymap(lambda x: x.replace(",", "").strip() if isinstance(x, str) else x)
-
-# Ensure numeric coercion after cleaning
-for col in df.columns:
-    if col not in ["activity_type", "date", "favorite", "title", "time", "moving_time", "elapsed_time", "best_lap_time"]:
-        df[col] = pd.to_numeric(df[col], errors="coerce")
-
-# Calculate duration fields in seconds from HH:MM:SS format
-df["duration_sec"] = df["time"].apply(lambda t: sum(int(x) * 60 ** i for i, x in enumerate(reversed(t.split(":")))) if isinstance(t, str) and ":" in t else None)
-df["moving_time_sec"] = df["moving_time"].apply(lambda t: sum(int(x) * 60 ** i for i, x in enumerate(reversed(t.split(":")))) if isinstance(t, str) and ":" in t else None)
-df["elapsed_time_sec"] = df["elapsed_time"].apply(lambda t: sum(int(x) * 60 ** i for i, x in enumerate(reversed(t.split(":")))) if isinstance(t, str) and ":" in t else None)
-    clean_df = clean_data(raw_df)
-    merge_to_sqlite(clean_df, args.output_sqlite, table_name=args.table)
+    df = load_and_clean_csv(csv_path)
+    merge_to_sqlite(df, db_path)
 
 if __name__ == "__main__":
     main()
