@@ -45,9 +45,10 @@ def load_and_clean_csv(csv_path):
 
     df['distance'] = pd.to_numeric(df.get('distance'), errors='coerce')
     df['calories'] = pd.to_numeric(df.get('calories'), errors='coerce')
-    df.loc[(df['distance'] > 0) & (df['title'].str.lower().str.contains('bike|ride|cycling', na=False)), 'activity type'] = 'Cycling'
-    df.loc[(df['distance'] > 0) & (df['title'].str.lower().str.contains('ski', na=False)), 'activity type'] = 'Skiing'
 
+    df['activity type'] = df['activity type'].fillna('')
+    df.loc[(df['distance'] > 0) & (df['activity type'] == '') & (df['title'].str.lower().str.contains('bike|ride|cycling', na=False)), 'activity type'] = 'Cycling'
+    df.loc[(df['distance'] > 0) & (df['activity type'] == '') & (df['title'].str.lower().str.contains('ski', na=False)), 'activity type'] = 'Skiing'
     df['duration_sec'] = df['time'].apply(parse_time_to_seconds)
     df['moving_time_sec'] = df['moving time'].apply(parse_time_to_seconds)
     df['elapsed_time_sec'] = df['elapsed time'].apply(parse_time_to_seconds)
