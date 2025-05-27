@@ -14,3 +14,9 @@ This script merges new Garmin activity data from a CSV export (`Activities.csv`)
 
 ```bash
 python garmin_merge.py merge Activities.csv garmin_activities.sqlite
+
+## Deployment Assumptions
+
+- Backups are not handlede by this script, so a process or wrapper that will backup the database either before or after the mege is expected to guard against corruption.
+- The current deployment backs up the database to cloud storage.
+
