@@ -25,13 +25,15 @@ This project manages a personal Garmin activity database using a custom Python s
 Only these values should remain after mapping:
 
 - `running`
+- `hiking`
+- `walking`
 - `cycling`
 - `mountain biking`
-- `walking`
-- `rowing`
 - `backcountry skiing`
 - `resort skiing`
-- `strength training`
+- `nordic skiing`
+- `indoor rowing`
+- `outdoor rowing`
 - `other`
 
 Any activity not matching or mapped to the above will default to `other`. Titles remain unchanged.
