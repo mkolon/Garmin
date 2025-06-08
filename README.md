@@ -13,7 +13,7 @@ This script merges new Garmin activity data from a CSV export (`Activities.csv`)
 ## Usage
 
 ```bash
-python garmin_merge.py merge Activities.csv garmin_activities.sqlite
+python garmin_merge.py Activities.csv garmin_activities.sqlite
 ```
 
 ## Deployment Details
