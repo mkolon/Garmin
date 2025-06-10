@@ -1,90 +1,83 @@
-import csv
-import sqlite3
-import os
+#!/usr/bin/env python3
 
-# Canonical mapping dictionary
-ACTIVITY_TYPE_MAP = {
-    'running': 'running',
-    'treadmill running': 'running',
-    'trail running': 'running',
-    'cycling': 'cycling',
-    'road cycling': 'cycling',
-    'mountain biking': 'mountain biking',
-    'biking': 'cycling',
-    'walking': 'walking',
-    'hiking': 'hiking',
-    'backcountry skiing': 'backcountry skiing',
-    'downhill skiing': 'resort skiing',
-    'alpine skiing': 'resort skiing',
-    'cross country skiing': 'backcountry skiing',
-    'indoor rowing': 'indoor rowing',
-    'rowing': 'outdoor rowing',
+import sys
+import pandas as pd
+import sqlite3
+from datetime import datetime
+
+ESSENTIAL_FIELDS = {
+    "Activity Type": "activity_type",
+    "Date": "date",
+    "Title": "title",
+    "Distance": "distance",
+    "Calories": "calories",
+    "Time": "time",
+    "Avg HR": "avg_hr",
+    "Max HR": "max_hr",
+    "Total Ascent": "total_ascent"
 }
 
-def normalize_activity_type(raw_type, title):
-    t = (raw_type or "").strip().lower()
-    title_lower = (title or "").lower()
+def time_to_seconds(time_str):
+    try:
+        parts = [int(p) for p in time_str.split(":")]
+        if len(parts) == 3:
+            return parts[0] * 3600 + parts[1] * 60 + parts[2]
+        elif len(parts) == 2:
+            return parts[0] * 60 + parts[1]
+    except:
+        return None
+    return None
 
-    if t == "skiing":
-        if "backcountry" in title_lower or "xc" in title_lower or "cross country" in title_lower or "skin" in title_lower:
-            return "backcountry skiing"
-        elif "resort" in title_lower or "alpine" in title_lower or "smugglers'" in title_lower or "stowe" in title_lower or "cambridge" in title_lower:
-            return "resort skiing"
-        else:
-            return "resort skiing"
-    elif t in ACTIVITY_TYPE_MAP:
-        return ACTIVITY_TYPE_MAP[t]
-    else:
-        return ACTIVITY_TYPE_MAP.get(t, 'other')
+def clean_value(value):
+    if pd.isna(value) or value in ("--", ""):
+        return None
+    return str(value).replace(",", "").strip()
 
-def parse_time_to_seconds(time_str):
-    if not time_str:
-        return 0
-    parts = list(map(int, time_str.strip().split(":")))
-    if len(parts) == 3:
-        h, m, s = parts
-        return h * 3600 + m * 60 + s
-    elif len(parts) == 2:
-        m, s = parts
-        return m * 60 + s
-    return int(parts[0]) if parts else 0
+def process_csv(csv_path):
+    df_raw = pd.read_csv(csv_path)
+    df = df_raw[list(ESSENTIAL_FIELDS.keys())].rename(columns=ESSENTIAL_FIELDS)
 
-def merge_csv_to_db(csv_path, db_path):
-    if not os.path.exists(csv_path) or not os.path.exists(db_path):
-        print("CSV or DB path not found.")
-        return
+    # Clean and convert
+    df["date"] = pd.to_datetime(df["date"], errors="coerce")
+    df["distance"] = pd.to_numeric(df["distance"].apply(clean_value), errors="coerce")
+    df["calories"] = pd.to_numeric(df["calories"].apply(clean_value), errors="coerce").round().astype("Int64")
+    df["time"] = df["time"].apply(lambda t: time_to_seconds(clean_value(t))).astype("Int64")
+    df["avg_hr"] = pd.to_numeric(df["avg_hr"].apply(clean_value), errors="coerce").round().astype("Int64")
+    df["max_hr"] = pd.to_numeric(df["max_hr"].apply(clean_value), errors="coerce").round().astype("Int64")
+    df["total_ascent"] = pd.to_numeric(df["total_ascent"].apply(clean_value), errors="coerce").round().astype("Int64")
+    df["title"] = df["title"].astype(str).str.strip()
+    df["activity_type"] = df["activity_type"].astype(str).str.strip()
 
+    return df
+
+def merge_to_database(csv_df, db_path):
     conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
+    existing = pd.read_sql_query("SELECT title, date, distance FROM activities", conn)
+    existing["date"] = pd.to_datetime(existing["date"], errors="coerce")
 
-    with open(csv_path, newline='') as csvfile:
-        reader = csv.DictReader(csvfile)
-        for row in reader:
-            raw_type = row.get("Activity Type")
-            title = row.get("Title", "")
-            date = row.get("Date")
-            distance = float(row.get("Distance", 0) or 0)
-            calories = int(row.get("Calories", 0) or 0)
-            duration = parse_time_to_seconds(row.get("Time", "0:00"))
-            avg_hr = int(row.get("Average Heart Rate", 0) or 0)
-            max_hr = int(row.get("Max Heart Rate", 0) or 0)
-            ascent = int(row.get("Total Ascent", 0) or 0)
+    # Deduplication
+    merge_keys = ["title", "date", "distance"]
+    new_df = pd.merge(csv_df, existing, on=merge_keys, how="left", indicator=True)
+    clean_df = new_df[new_df["_merge"] == "left_only"].drop(columns=["_merge"])
 
-            activity_type = normalize_activity_type(raw_type, title)
+    if not clean_df.empty:
+        clean_df[[
+            "activity_type", "date", "title", "distance", "calories",
+            "time", "avg_hr", "max_hr", "total_ascent"
+        ]].to_sql("activities", conn, if_exists="append", index=False)
 
-            cursor.execute("""
-                SELECT COUNT(*) FROM activities
-                WHERE activity_type = ? AND date = ?
-            """, (activity_type, date))
-            exists = cursor.fetchone()[0]
-
-            if not exists:
-                cursor.execute("""
-                    INSERT INTO activities (
-                        activity_type, date, title, distance, calories, duration, avg_hr, max_hr, total_ascent
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (activity_type, date, title, distance, calories, duration, avg_hr, max_hr, ascent))
-
-    conn.commit()
     conn.close()
-    print("Merge complete.")
+    print(f"{len(clean_df)} new record(s) added.")
+
+if __name__ == "__main__":
+    if len(sys.argv) != 3:
+        print("Usage:\n  python garmin_csv_merge.py Activities.csv garmin_activities.sqlite")
+        sys.exit(1)
+
+    csv_file = sys.argv[1]
+    db_file = sys.argv[2]
+
+    print(f"Loading CSV: {csv_file}")
+    df = process_csv(csv_file)
+    print(f"Merging into database: {db_file}")
+    merge_to_database(df, db_file)
