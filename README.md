@@ -36,6 +36,7 @@ To merge a new CSV export from Garmin Connect:
 
 1. Place the exported file (e.g., `Activities.csv`) in the same directory.
 2. Run the merge script:
+3. A shell script `update.zsh` is also provided to simplify the process and back up the database.
 
 ```bash
 python garmin_merge.py
