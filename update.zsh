@@ -22,4 +22,5 @@ mkdir -p -- "$BACKUP_DIR"
 # 4) Copy the updated DB to backups with date suffix
 cp -- "$DB" "${BACKUP_DIR}/${BACKUP_NAME}"
 
+python3 latest.py
 
