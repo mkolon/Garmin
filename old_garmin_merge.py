@@ -34,15 +34,6 @@ def merge_to_database(df, db_file):
         'duration', 'avg_hr', 'max_hr', 'total_ascent'
     ]
 
-    # Clean and convert numeric fields
-    df['distance'] = pd.to_numeric(df['distance'], errors='coerce')
-    df['calories'] = pd.to_numeric(df['calories'].astype(str).str.replace(',', ''), errors='coerce')
-    df['duration'] = pd.to_numeric(df['duration'], errors='coerce')
-    df['avg_hr'] = pd.to_numeric(df['avg_hr'], errors='coerce')
-    df['max_hr'] = pd.to_numeric(df['max_hr'], errors='coerce')
-    df['total_ascent'] = pd.to_numeric(df['total_ascent'], errors='coerce')
-
-
     # Normalize activity_type to lowercase
     df['activity_type'] = df['activity_type'].str.lower()
 
