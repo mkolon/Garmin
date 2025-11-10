@@ -103,3 +103,5 @@ The SQLite `activities` table contains the following fields:
 - The database assumes Garmin Connect exports in their default CSV format.
 - If Garmin changes field names or formatting, minor updates to `garmin_merge.py` may be required.
 - No raw activity types or extra metadata are stored — this is an intentionally compact schema.
+
+This is a gratuitious change to get GitHub to notice me.

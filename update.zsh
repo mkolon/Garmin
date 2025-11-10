@@ -11,7 +11,9 @@ DATE="$(date +%Y%m%d)"
 BACKUP_NAME="activities_database_${DATE}.sqlite"
 
 # 1) Run the merge script
-python3 ~/git/Garmin/garmin_merge.py "$CSV" "$DB"
+# took this out...python3 ~/git/Garmin/garmin_merge.py "$CSV" "$DB"
+source "$HOME/garmin_venv/bin/activate"
+python ~/git/Garmin/garmin_merge.py "$CSV" "$DB"
 
 # 2) Delete the CSV
 rm -f -- "$CSV"
