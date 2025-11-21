@@ -105,3 +105,5 @@ The SQLite `activities` table contains the following fields:
 - No raw activity types or extra metadata are stored — this is an intentionally compact schema.
 
 This is a gratuitious change to get GitHub to notice me.
+This is another one of those. Not sure it will do anything though.
+
